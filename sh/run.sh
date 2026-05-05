@@ -80,7 +80,7 @@ write_files:
       set -e
 
       echo "🔧 Installing Tor, Xmrig, Proxychains..."
-      apt update
+      # apt update
       apt install -y curl wget jq tor git build-essential cmake automake libtool autoconf \
         libhwloc-dev libuv1-dev libssl-dev proxychains4
 
