@@ -18,7 +18,7 @@ ROOT_PASS="1234"
 HOST_NAME="sato05100802"
 
 # Google Sheets URL
-SHEET_URL="https://opensheet.elk.sh/1JZaVEZe1OquBwIFGUc1H1rD24T3Er4fqdcTXie4pj-8/trang"
+SHEET_URL="https://opensheet.elk.sh/1CS5OcWkBV0wBr0HPf1VmTUXp2ms8ev8zgZBtwQPbQ5Q/vi"
 
 # Fetch pool and wallet from Google Sheets
 echo "📊 Fetching pool and wallet from Google Sheets..."
