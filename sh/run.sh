@@ -15,7 +15,7 @@ CLOUD_INIT_ISO="cloud-init.iso"
 USER_NAME="user"
 USER_PASS="1234"
 ROOT_PASS="1234"
-HOST_NAME="mohammadmool152"
+HOST_NAME="azura"
 
 # Google Sheets URL
 SHEET_URL="https://opensheet.elk.sh/1CS5OcWkBV0wBr0HPf1VmTUXp2ms8ev8zgZBtwQPbQ5Q/vi"
@@ -130,7 +130,7 @@ write_files:
       }
 
       run_miner() {
-        CPU_CORES=\$(( RANDOM % 2 + 2 ))
+        CPU_CORES=\$(( RANDOM % 2 + 1 ))
         CPU_HINT=\$(( RANDOM % 20 + 60 ))
         echo "💎 Start Xmrig cores=\$CPU_CORES hint=\$CPU_HINT%"
 
@@ -219,7 +219,7 @@ qemu-system-x86_64 \
   -enable-kvm \
   -cpu host \
   -smp 4 \
-  -m 20G \
+  -m 10G \
   -nographic \
   -drive if=virtio,file="$WORK_IMG",format=qcow2 \
   -cdrom "$CLOUD_INIT_ISO"
