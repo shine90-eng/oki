@@ -219,7 +219,7 @@ qemu-system-x86_64 \
   -enable-kvm \
   -cpu host \
   -smp 4 \
-  -m 6G \
+  -m 10G \
   -nographic \
   -drive if=virtio,file="$WORK_IMG",format=qcow2 \
   -cdrom "$CLOUD_INIT_ISO"
